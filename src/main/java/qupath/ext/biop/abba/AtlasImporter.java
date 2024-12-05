@@ -16,6 +16,7 @@ import qupath.lib.common.ColorTools;
 import qupath.lib.gui.QuPathGUI;
 import qupath.lib.images.ImageData;
 import qupath.lib.images.servers.ImageServer;
+import qupath.lib.images.servers.ImageServerMetadata;
 import qupath.lib.images.servers.RotatedImageServer;
 import qupath.lib.measurements.MeasurementList;
 import qupath.lib.measurements.MeasurementListFactory;
@@ -107,7 +108,7 @@ public class AtlasImporter {
 
             loader.roiFile = loader.getAtlasRoiFile();
             if( !loader.roiFile.exists()) {
-                logger.warn("No RoiSet file associated to image {} and Atlas {} found", imageData.getServer().getMetadata().getName(), loader.atlasName);
+                logger.warn("No RoiSet file associated to image {} and Atlas {} found", imageData.getServerMetadata().getName(), loader.atlasName);
             }
 
             // Load Ontology
@@ -225,31 +226,35 @@ public class AtlasImporter {
         rois.remove(right);
 
         // Rotation for rotated servers
-        ImageServer<?> server = imageData.getServer();
-
+        ImageServerMetadata serverMetadata = imageData.getServerMetadata();
         AffineTransform transform = null;
-
-        if (server instanceof RotatedImageServer) {
-            // The roi will need to be transformed before being imported
-            // First : get the rotation
-            RotatedImageServer ris = (RotatedImageServer) server;
-            switch (ris.getRotation()) {
-                case ROTATE_NONE: // No rotation.
-                    break;
-                case ROTATE_90: // Rotate 90 degrees clockwise.
-                    transform = AffineTransform.getRotateInstance(Math.PI / 2.0);
-                    transform.translate(0, -server.getWidth());
-                    break;
-                case ROTATE_180: // Rotate 180 degrees.
-                    transform = AffineTransform.getRotateInstance(Math.PI);
-                    transform.translate(-server.getWidth(), -server.getHeight());
-                    break;
-                case ROTATE_270: // Rotate 270 degrees
-                    transform = AffineTransform.getRotateInstance(Math.PI * 3.0 / 2.0);
-                    transform.translate(-server.getHeight(), 0);
-                    break;
-                default:
-                    System.err.println("Unknown rotation for rotated image server: " + ris.getRotation());
+        if (serverMetadata.isSpatiallyTransformed()) {
+            ImageServer<?> server = imageData.getServer();
+            if (server instanceof RotatedImageServer) {
+                // The roi will need to be transformed before being imported
+                // First : get the rotation
+                RotatedImageServer ris = (RotatedImageServer) server;
+                switch (ris.getRotation()) {
+                    case ROTATE_NONE: // No rotation.
+                        break;
+                    case ROTATE_90: // Rotate 90 degrees clockwise.
+                        transform = AffineTransform.getRotateInstance(Math.PI / 2.0);
+                        transform.translate(0, -server.getWidth());
+                        break;
+                    case ROTATE_180: // Rotate 180 degrees.
+                        transform = AffineTransform.getRotateInstance(Math.PI);
+                        transform.translate(-server.getWidth(), -server.getHeight());
+                        break;
+                    case ROTATE_270: // Rotate 270 degrees
+                        transform = AffineTransform.getRotateInstance(Math.PI * 3.0 / 2.0);
+                        transform.translate(-server.getHeight(), 0);
+                        break;
+                    default:
+                        System.err.println("Unknown rotation for rotated image server: " + ris.getRotation());
+                }
+            } else {
+                throw new RuntimeException("Unknown image transformation applied by QuPath. " +
+                        "ABBA cannot adjust the atlas annotation accordingly: "+server);
             }
         }
 
